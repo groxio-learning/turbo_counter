@@ -7,11 +7,19 @@ defmodule TurboCounterWeb.CountLive do
       :ok, 
       socket 
       |> new 
+      |> new_changeset
     }
   end
   
   defp new(socket) do
     assign(socket, counters: Counters.new())
+  end
+  
+  defp new_changeset(socket) do
+    assign(
+      socket,
+      changeset: Counters.validate_new_counter(socket.assigns.counters, %{})
+    )
   end
   
   def render(assigns) do
@@ -21,13 +29,25 @@ defmodule TurboCounterWeb.CountLive do
     <hr>
     <%= for {name, count} <- @counters do %> 
     <p>
-      Counter<%= name %>: <%= count %> 
+      <%= name %>: <%= count %> 
       <button phx-click="inc" phx-value-counter="<%= name %>">inc</button>
       | <button phx-click="dec" phx-value-counter="<%= name %>">dec</button>
       | <button phx-click="clear" phx-value-counter="<%= name %>">clear</button>
     </p>
     <% end %>
-    <button phx-click="add">ADD COUNTER</button>
+    <%= f = form_for @changeset, "#",
+      phx_change: "validate",
+      phx_submit: "add" %>
+
+      <%= label f, :name %>
+      <%= text_input f, :name %>
+      <%= error_tag f, :name %>
+
+      <%= submit "Add Counter", 
+          phx_disable_with: "Adding...", 
+          disabled: !@changeset.valid?() %>
+    </form>    
+    
     """
   end
   
@@ -42,12 +62,26 @@ defmodule TurboCounterWeb.CountLive do
   defp clear(socket, counter) do
     assign(socket, counters: Counters.clear(socket.assigns.counters, counter))
   end
+  
+  defp validate(socket, params) do
+    changeset = 
+      socket.assigns.counters
+      |> Counters.validate_new_counter(params)
+      |> Map.put(:action, :validate)
+      
+    assign(socket, changeset: changeset)
+  end
 
-  defp add_counter(socket) do
-    assign(
-      socket, 
-      counters: Counters.add_counter(socket.assigns.counters)
-    )
+  defp add_counter(socket, params) do
+    if socket.assigns.changeset.valid?() do
+      assign(
+        socket, 
+        counters: Counters.add_counter(socket.assigns.counters, params["name"], 0)
+      )
+      |> new_changeset()
+    else
+      socket
+    end
   end
   
   def handle_event("inc", %{"counter" => counter}, socket) do
@@ -59,7 +93,10 @@ defmodule TurboCounterWeb.CountLive do
   def handle_event("clear", %{"counter" => counter}, socket) do
     {:noreply, clear(socket, counter) }
   end
-  def handle_event("add", _, socket) do
-    {:noreply, add_counter(socket) }
+  def handle_event("validate", %{"counter" => params}, socket) do
+    {:noreply, validate(socket, params)}
+  end
+  def handle_event("add", %{"counter" => params}, socket) do
+    {:noreply, socket |> validate(params) |> add_counter(params) }
   end
 end

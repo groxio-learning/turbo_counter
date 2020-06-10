@@ -1,4 +1,6 @@
 defmodule TurboCounter.Counters do
+  alias TurboCounter.Counters.Counter
+  
   def new do
     %{}
   end
@@ -20,6 +22,10 @@ defmodule TurboCounter.Counters do
     |> to_string
   rescue
     _e -> "1"
+  end
+  
+  def validate_new_counter(counters, params) do
+    Counter.new_changeset(params, counters)
   end
   
   def remove_counter(counters, name) do
